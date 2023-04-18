@@ -1,0 +1,132 @@
+name: Add new post
+"on":
+    workflow_dispatch:
+        inputs:
+            jobId:
+                description: Job id
+                required: true
+            commitMessage:
+                description: Commit message
+                required: true
+            currentPost:
+                description: Current post index
+                required: true
+            keywordId:
+                description: Keyword id
+                required: true
+            postTemplateId:
+                description: Post template id
+                required: true
+jobs:
+    deploy:
+        name: Add new post
+        runs-on: ubuntu-latest
+        env:
+            API_URL: ${{ secrets.API_URL }}
+            WORKER_URL: ${{ secrets.WORKER_URL }}
+            SITE_ID: ${{ secrets.SITE_ID }}
+            USER_ID: ${{ secrets.USER_ID }}
+            JOB_ID: ${{ github.event.inputs.jobId }}
+            SITE_URL: https://Kitchenset.dohatweetups.com/
+            SITEMAP_FILE: sitemaw.xml
+        steps:
+            - name: CHECKOUT_REPO
+              uses: actions/checkout@v3
+              with:
+                token: ${{ secrets.REPOSITORY_TOKEN }}
+            - name: SETUP_NODE
+              uses: actions/setup-node@v3
+              with:
+                node-version: 16
+            - name: PULL_SCRIPTS
+              env:
+                STEP_ID: PULL_SCRIPTS
+                SCRIPTS_URL: ${{ secrets.SCRIPTS_URL }}
+              run: |4-
+                          git clone --progress $SCRIPTS_URL scripts
+                          rm -rf scripts/.git
+                          mv scripts/* .github/scripts
+                          rm -rf scripts
+            - name: PULL_ACTIONS
+              env:
+                STEP_ID: PULL_ACTIONS
+                ACTIONS_URL: ${{ secrets.ACTIONS_URL }}
+              run: |4-
+                          git clone --progress $ACTIONS_URL scripts
+                          rm -rf actions/.git
+                          mv scripts/* .github/actions
+                          rm -rf actions`
+            - name: PULL_THEME
+              uses: ./.github/actions/exec
+              env:
+                STEP_ID: PULL_THEME
+                THEME_URL: ${{ secrets.THEME_URL }}
+                THEME_NAME: ${{ vars.THEME_NAME }}
+            - name: INSTALL_HUGO_AND_CLOUD_CLI
+              uses: ./.github/actions/exec
+              env:
+                STEP_ID: INSTALL_HUGO_AND_CLOUD_CLI
+                CLOUD_TYPE: ${{ vars.CLOUD_TYPE }}
+            - name: INSTALL_DEPENDENCIES
+              uses: ./.github/actions/exec
+              env:
+                STEP_ID: INSTALL_DEPENDENCIES
+            - name: CREATE_POST_DATA
+              uses: ./.github/actions/content-maker
+              timeout-minutes: 180
+              continue-on-error: true
+              with:
+                keywordId: ${{ github.event.inputs.keywordId }}
+                postTemplateId: ${{ github.event.inputs.postTemplateId }}
+                initPostCount: ${{ vars.INIT_POST_COUNT }}
+                currentPost: ${{ github.event.inputs.currentPost }}
+                postPerDay: ${{ vars.POST_PER_DAY }}
+              env:
+                STEP_ID: CREATE_POST_DATA
+            - name: BUILD_HTML
+              uses: ./.github/actions/exec
+              timeout-minutes: 90
+              env:
+                STEP_ID: BUILD_HTML
+            - name: OPTIMIZE_SITEMAP
+              uses: ./.github/actions/sitemap-optimizer
+              with:
+                sitemapFile: sitemaw.xml
+              env:
+                STEP_ID: OPTIMIZE_SITEMAP
+            - name: PUSH_REPO
+              uses: ./.github/actions/publish-to-github-action
+              env:
+                STEP_ID: PUSH_REPO
+                GITHUB_TOKEN: ${{ secrets.REPOSITORY_TOKEN }}
+                BRANCH_NAME: main
+                COMMIT_MESSAGE: ${{ github.event.inputs.commitMessage }}
+            - name: DEPLOY_WEB
+              uses: ./.github/actions/exec
+              env:
+                STEP_ID: DEPLOY_WEB
+                CLOUD_TYPE: ${{ vars.CLOUD_TYPE }}
+                CLOUD_SITE_ID: ${{ secrets.CLOUD_SITE_ID }}
+                CLOUD_TOKEN: ${{ secrets.CLOUD_TOKEN }}
+            - name: PING_SITEMAP
+              uses: ./.github/actions/sitemap-ping
+              with:
+                sitemapUrl: https://Kitchenset.dohatweetups.com//sitemaw.xml
+              env:
+                STEP_ID: PING_SITEMAP
+            - name: ADD_SITE_TO_INDEXER
+              uses: ./.github/actions/site-indexer
+              with:
+                siteUrl: ${{ env.SITE_URL }}
+                sitemapFile: sitemaw.xml
+                siteId: ${{ github.event.repository.name }}
+              env:
+                STEP_ID: ADD_SITE_TO_INDEXER
+            - name: SET_REPO_PRIVATE
+              uses: ./.github/actions/set-private-repo
+              with:
+                token: ${{ secrets.REPOSITORY_TOKEN }}
+                owner: ${{ github.actor }}
+                repo: ${{ github.event.repository.name }}
+              env:
+                STEP_ID: SET_REPO_PRIVATE
