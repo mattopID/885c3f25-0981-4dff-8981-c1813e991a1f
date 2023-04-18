@@ -1,0 +1,12 @@
+title: '{{ ai_title }}'
+description: '{{ ai_description }}'
+slug: '{{ slug }}'
+cover: '{{ cover }}'
+date: '{{ date }}'
+lastMod: '{{ lastMod }}'
+author: '{{ author }}'
+ratingScore: '{{ ratingScore }}'
+reviewCount: '{{ reviewCount }}'
+tags: '{{ tags }}'
+draft: false
+type: post
